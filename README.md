@@ -11,7 +11,7 @@ Therefore the installation of the packages and the requirements are similar. To 
 
 ```bash
 git clone https://github.com/dxaicvpr2024/DXAI.git
-cd DXAI/
+cd dxai/
 conda create -n dxai python=3.6.7
 conda activate dxai
 pip install -r requirements.txt
