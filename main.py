@@ -21,19 +21,41 @@ from core.dxai import eval_xai
 
 
 def subdirs(dname):
+    """
+    Return a list of subdirectories in the given directory.
+
+    Parameters:
+    - dname (str): The directory path.
+
+    Returns:
+    - list: List of subdirectories in the given directory.
+    """
     return [d for d in os.listdir(dname)
             if os.path.isdir(os.path.join(dname, d))]
 
 
 def main(args):
+    """
+    Main function to execute StarGAN v2 training or evaluation.
+
+    Parameters:
+    - args (argparse.Namespace): Command-line arguments.
+
+    Returns:
+    - None
+    """
     print(args)
     cudnn.benchmark = True
     torch.manual_seed(args.seed)
 
+    # Create a Solver instance
     solver = Solver(args)
+
     if args.mode == 'train':
         assert len(subdirs(args.train_img_dir)) == args.num_domains
         assert len(subdirs(args.val_img_dir)) == args.num_domains
+
+        # Get training data loader
         loaders = Munch(src=get_train_loader(root=args.train_img_dir,
                                              which='source',
                                              img_size=args.img_size,
@@ -42,6 +64,7 @@ def main(args):
                                              img_channels=args.img_channels,
                                              data_range_norm=args.data_range_norm))
 
+        # Get test data loader for evaluation during training
         test_loaders = Munch(src=get_test_loader(root=args.src_dir,
                                                  img_size=args.img_size,
                                                  batch_size=args.val_batch_size,
@@ -50,12 +73,16 @@ def main(args):
                                                  img_channels=args.img_channels,
                                                  data_range_norm=args.data_range_norm))
 
+        # Start training
         solver.train(loaders, test_loaders)
         print('Training done.')
+
     elif args.mode == 'eval':
+        # Evaluate explainability using XAI methods
         eval_xai(args, use_true_labels=True, experiment_type='global_beta')
         eval_xai(args, use_true_labels=True, experiment_type='faithfulness')
         print('Evaluation done.')
+
     else:
         raise NotImplementedError
 
@@ -63,5 +90,7 @@ def main(args):
 
 
 if __name__ == '__main__':
+    # Load command-line arguments
     args = load_args()
+    # Execute the main function
     main(args)

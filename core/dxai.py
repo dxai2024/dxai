@@ -10,30 +10,56 @@ args = load_args()
 
 
 def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
-    
+    """
+    Evaluate explainability methods on a trained model.
+
+    Args:
+        args (argparse.Namespace): Command-line arguments.
+        use_true_labels (bool, optional): Whether to use true labels for XAI methods. Default is True.
+        experiment_type (str, optional): Type of XAI experiment, either 'global_beta' or 'faithfulness'. Default is 'global_beta'.
+
+    Returns:
+        int: Return value indicating the completion status (0 for success).
+
+    Raises:
+        AssertionError: If experiment_type is not one of ('global_beta', 'faithfulness') or if checkpoint_dir does not exist.
+
+    Note:
+        This function assumes the presence of various helper functions for data loading, network loading,
+        and XAI method evaluation.
+
+    """
+
     assert experiment_type in ('global_beta', 'faithfulness')
     assert os.path.isdir(args.checkpoint_dir)
+
+    # Set various parameters and paths
     data_name = args.data_name
     mission_name = args.mission_name
     classifier_type = args.classifier_type
     batch_size = 1
 
+    # Get the last checkpoint iteration
     args.resume_iter = get_last_resume_iter(args.checkpoint_dir)
     threshold2plot = 30
 
+    # Check experiment type
     if experiment_type in 'global_beta':
         global_beta = True
     else:
         global_beta = False
     
+    # Set additional options for XAI methods
     one_heatmap_image = False
     show_color = False  # True
     show_only_attr = True  # False #
 
     save_class_agnostic = True  # False #
 
+    # Set LRP classifier type
     lrp_classifier_type = 'classifier3' if 'discriminator' in classifier_type else classifier_type
 
+    # Define XAI methods and beta values
     methods_list = ['rand', 'dxai', 'LayerGradCam', 'GuidedGradCam',
                     'GradientShap', 'lrp_relu', 'InternalInfluence', 'IntegratedGradients', 'Lime']
     beta_list = [0, 0.01, 0.05, 0.1, 0.15, 0.2]
@@ -41,17 +67,19 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
         beta_list = [0, 0.2, 0.4, 0.6, 0.8, 1]
     beta_list.sort()
 
+    # Load test dataset
     _, test_set = make_datasets(data_name, args.img_channels, args.img_size)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=2)
 
+    # Get class information
     classes = np.asarray(test_set.classes)
     num_of_classes = len(classes)
     args.num_domains = num_of_classes
     args.max_eval_iter = min(args.max_eval_iter, int(len(test_set)/batch_size))
     iters_num = min(args.max_eval_iter*batch_size, len(test_set))
     run_name = './xai_output/xai_'+data_name+'_'+mission_name
-    branch_path = args.checkpoint_dir+os.sep+format(args.resume_iter, '06d')+'_nets_ema.ckpt'
-    details_dict_path = run_name + os.sep + str(args.resume_iter)+'_details_dict'+'_'+classifier_type+'_'+str(iters_num)+'_iters'+'.pkl'
+    branch_path = args.checkpoint_dir + os.sep + format(args.resume_iter, '06d') + '_nets_ema.ckpt'
+    details_dict_path = run_name + os.sep + str(args.resume_iter) + '_details_dict' + '_' + classifier_type + '_' + str(iters_num) + '_iters' + '.pkl'
 
     if global_beta:
         details_dict_path = details_dict_path.replace('details_dict', 'global_beta_details_dict')
@@ -74,6 +102,7 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
     print('details-dict path is: ', details_dict_path.replace(run_name, ''))
     print(args.resume_iter)
 
+    # Load GAN networks and classifiers
     nets = load_branch_gan_networks(args, branch_path, device)
     resnet_classifier = load_classifier('resnet18', data_name, args, num_of_classes, device)
     classifier = load_classifier(classifier_type, data_name, args, num_of_classes, device, nets)
@@ -110,6 +139,7 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
             print('testing... , beta = ', beta)
             images2show = []
             attributions2show_per_method = []
+            attributions2show = []
             probs_hists = torch.zeros(num_of_classes, num_of_classes).to(device)
             class_counter = torch.zeros(num_of_classes).to(device)
             
