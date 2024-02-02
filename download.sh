@@ -29,13 +29,13 @@ elif  [ $FILE == "afhq-dataset" ]; then
 elif  [ $FILE == "pretrained-dxai-afhq" ]; then
     mkdir -p ./expr/checkpoints_afhq_pretrained
     CKPT_FILE='./expr/checkpoints_afhq_pretrained/320001_nets_ema.ckpt'
-    wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1F2H0Fpq60pFksSU6FAwnCnJbKMZ6hLAF' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1F2H0Fpq60pFksSU6FAwnCnJbKMZ6hLAF" -O $CKPT_FILE && rm -rf /tmp/cookies.txt
+    gdown --id 1F2H0Fpq60pFksSU6FAwnCnJbKMZ6hLAF -O CKPT_FILE
+    
   
 elif  [ $FILE == "pretrained-dxai-celeba-hq" ]; then
     mkdir -p ./expr/checkpoints_celeba_hq_pretrained
     CKPT_FILE='./expr/checkpoints_celeba_hq_pretrained/320001_nets_ema.ckpt'
-    wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1N972J9AF1X8-uuIcfqKtWpGn0OSAM2Db' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1N972J9AF1X8-uuIcfqKtWpGn0OSAM2Db" -O $CKPT_FILE && rm -rf /tmp/cookies.txt
-
+    gdown --id 1N972J9AF1X8-uuIcfqKtWpGn0OSAM2Db -O CKPT_FILE
     
 elif  [ $FILE == "pretrained-resnet18-afhq" ]; then
     wget --no-check-certificate 'https://docs.google.com/uc?export=download&id=12MVga-DdXbhLk7RoKT9wfjKTnKSs7Hw5' -O afhq_resnet18_ch_3_weights.ckpt
