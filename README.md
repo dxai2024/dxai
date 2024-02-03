@@ -19,6 +19,10 @@ pip install -r requirements.txt
 The installations and experiments were conducted on a system equipped with an NVIDIA GeForce RTX 2080 Ti GPU, running CUDA version 12.0.
 
 ## Data
+In order to download the trained models from Google-Drive please install `gdown` package.
+```bash
+pip install gdown
+```
 Download AFHQ dataset and pretrained models.
 ```bash
 bash download.sh afhq-dataset
