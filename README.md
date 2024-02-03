@@ -10,7 +10,7 @@ The code in this repository is written based on the stragan-v2 code that can be 
 Therefore the installation of the packages and the requirements are similar. To install:
 
 ```bash
-git clone https://github.com/dxaicvpr2024/DXAI.git
+git clone https://github.com/dxai2024/dxai.git
 cd dxai/
 conda create -n dxai python=3.6.7
 conda activate dxai
