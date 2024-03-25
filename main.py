@@ -17,7 +17,7 @@ from core.data_loader import get_train_loader
 from core.data_loader import get_test_loader
 from core.solver import Solver
 from core.load_args import load_args
-from core.dxai import eval_xai
+from core.eval import eval_xai
 
 
 def subdirs(dname):

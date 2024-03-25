@@ -178,8 +178,6 @@ class MappingNetwork(nn.Module):
             out += [layer(h)]
         out = torch.stack(out, dim=1)  # (batch, num_domains, style_dim)
         idx = torch.LongTensor(range(y.size(0))).to(z.device)
-        # print('y')
-        # print(y.size())
         s_columnstack = out[
             idx, y]  # (batch, style_dim), because y selects the (single) domain for each sample in batch domain
         return s_columnstack
@@ -206,7 +204,6 @@ class Discriminator(nn.Module):
         blocks += [nn.LeakyReLU(0.2)]
         blocks += [nn.Conv2d(dim_out, dim_out, 4, 1, 0)]
         self.curr_img_size = self.curr_img_size - 4 + 1
-        print(self.curr_img_size)
         if self.curr_img_size > 1:
             blocks += [nn.LeakyReLU(0.2)]
             blocks += [nn.Conv2d(dim_out, dim_out, self.curr_img_size, 1, 0)]
@@ -232,8 +229,12 @@ class Discriminator(nn.Module):
         if y is None:
             return out  # self.softmax(out)
         else:
-            out_real_fake = out[idx, y]  # (batch),because y selects the (single) domain for each sample in batch domain
-            return out_real_fake, out  # self.softmax(out)
+            if self.num_domains >=2:
+                out_real_fake = out[idx, y]  # (batch),because y selects the (single) domain for each sample in batch domain
+                return out_real_fake, out  # self.softmax(out)
+            else:
+                out_real_fake = out
+                return out_real_fake, out
 
 
 class GroupedGenerator(nn.Module):
@@ -340,36 +341,6 @@ class GroupedGenerator(nn.Module):
 
 
 class Classifier(nn.Module):
-    def __init__(self, img_size=256, num_domains=2, img_channels=3, max_conv_dim=512, mean_invariance=False):
-        super().__init__()
-        self.mean_invariance = mean_invariance
-        dim_in = 2 ** 14 // img_size
-        blocks = []
-        blocks += [nn.Conv2d(img_channels, dim_in, 3, 1, 1)]
-
-        repeat_num = int(np.log2(img_size)) - 2
-        for _ in range(repeat_num):
-            dim_out = min(dim_in * 2, max_conv_dim)
-            blocks += [ResBlk(dim_in, dim_out, downsample=True)]
-            dim_in = dim_out
-
-        blocks += [nn.LeakyReLU(0.2)]
-        blocks += [nn.Conv2d(dim_out, dim_out, 4, 1, 0,)]
-        blocks += [nn.LeakyReLU(0.2)]
-        blocks += [nn.Conv2d(dim_out, num_domains, 1, 1, 0)]
-        self.main = nn.Sequential(*blocks)
-        self.softmax = nn.LogSoftmax(dim=1)
-    def forward(self, x):
-        if self.mean_invariance:
-            x_mean = torch.mean(torch.mean(x, 2, keepdim=True), 3, keepdim=True)
-            x = x - x_mean
-        out = self.main(x)
-        out = out.view(out.size(0), -1)  # (batch, num_domains)
-        out = self.softmax(out)
-        return out
-
-
-class Classifier2(nn.Module):
     def __init__(self, img_size=256, num_branches=2, img_channels=3, num_domains=2, max_conv_dim=512):
         super().__init__()
         dim_in = num_branches * 2**14 // img_size
@@ -391,9 +362,7 @@ class Classifier2(nn.Module):
         self.conv7 = nn.Conv2d(in_channels=8*dim_in, out_channels=8*dim_in, kernel_size=3, padding=1)
         self.conv8 = nn.Conv2d(in_channels=8*dim_in, out_channels=8*dim_in, kernel_size=3, padding=1)
         self.conv4x4 = nn.Conv2d(in_channels=8*dim_in, out_channels=num_domains, kernel_size=int(img_size/2**6), padding=0)
-        #self.FC = nn.Linear(in_features=16*64*64, out_features=16*64*64)
-        # self.softmax = nn.Softmax(dim=1)
-
+        
     def forward(self, x):
         x = self.conv1(x)  # (256,256)
         x = self.actv(x)
@@ -418,7 +387,6 @@ class Classifier2(nn.Module):
         x = self.conv8(x)  # (4,4)
         x = self.conv4x4(x)  #(1,1)
         x = x.squeeze(-1).squeeze(-1)
-        # x = self.softmax(x)
         return x
 
 
@@ -444,7 +412,6 @@ class Classifier3(nn.Module):
         blocks += [nn.ReLU()]
         blocks += [nn.Conv2d(dim_out, dim_out, 4, 1, 0)]
         curr_img_size = curr_img_size - 4 + 1
-        print(curr_img_size)
         if curr_img_size > 1:
             blocks += [nn.ReLU()]
             blocks += [nn.Conv2d(dim_out, dim_out, curr_img_size, 1, 0)]
@@ -492,32 +459,30 @@ class simple_classifier(nn.Module):
         return x
 
 
-def load_pretrained_classifier(classifier_type, data_name, img_channels, img_size, num_of_classes):
-    if 'classifier2' in classifier_type:
-        classifier_path = './'+data_name+'_classifier2'+ '_ch_' + str(img_channels) + '_weights.ckpt'
-        classifier = Classifier2(img_size=img_size, num_branches=1, img_channels=img_channels,
-                                    num_domains=num_of_classes)
-    elif 'classifier3' in classifier_type:
-        classifier_path = './'+data_name+'_classifier3'+ '_ch_' + str(img_channels) + '_weights.ckpt'
-        classifier = Classifier3(img_size=img_size, num_branches=1, img_channels=img_channels,
-                                    num_domains=num_of_classes)
-    elif 'simple_classifier' in classifier_type:
-        classifier_path = './' + data_name + '_simple_classifier' + '_ch_' + str(img_channels) + '_weights.ckpt'
-        classifier = simple_classifier(img_size=img_size, img_channels=img_channels, num_domains=num_of_classes)
-    elif 'resnet18' in classifier_type:
-        classifier_path = './'+data_name+'_resnet18' + '_ch_' + str(img_channels) + '_weights.ckpt'
+def load_pretrained_classifier(classifier_type, data_name, img_channels, img_size, num_of_classes, classifier_weights_path=''):
+   
+    if 'resnet18' in classifier_type:
+        classifier_path = './'+data_name+'_resnet18' + '_ch_' + str(img_channels) +'_weights.ckpt' if len(classifier_weights_path)==0 else classifier_weights_path
         classifier = torchvision.models.resnet18(pretrained=False)
         nr_filters = classifier.fc.in_features  # number of input features of last layer
         classifier.fc = nn.Linear(nr_filters, num_of_classes)
         classifier.conv1 = nn.Conv2d(img_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
     elif classifier_type in 'vgg11':
-        classifier_path = './'+data_name+'_vgg11' + '_ch_' + str(img_channels) + '_weights.ckpt'
+        classifier_path = './'+data_name+'_vgg11' + '_ch_' + str(img_channels) + '_weights.ckpt' if len(classifier_weights_path)==0 else classifier_weights_path
         classifier = torchvision.models.vgg11(pretrained=False)
         classifier.classifier[6] = nn.Linear(in_features=4096, out_features=num_of_classes)
         classifier.features[0] = nn.Conv2d(img_channels, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    elif 'classifier3' in classifier_type:
+        classifier_path = './'+data_name+'_classifier3'+ '_ch_' + str(img_channels) + '_weights.ckpt' if len(classifier_weights_path)==0 else classifier_weights_path
+        classifier = Classifier3(img_size=img_size, num_branches=1, img_channels=img_channels,
+                                    num_domains=num_of_classes)
+    elif 'simple_classifier' in classifier_type:
+        classifier_path = './' + data_name + '_simple_classifier' + '_ch_' + str(img_channels) + '_weights.ckpt' if len(classifier_weights_path)==0 else classifier_weights_path
+        classifier = simple_classifier(img_size=img_size, img_channels=img_channels, num_domains=num_of_classes)
+    
     classifier.load_state_dict(torch.load(classifier_path))
-
-    return classifier.eval()
+    classifier.eval()
+    return classifier
 
 
 def build_model(args):
@@ -531,10 +496,12 @@ def build_model(args):
 
     generator = nn.DataParallel(generator)
     num_style_vecs_per_class = generator.module.sub_networks.num_style_vecs_per_class
-
-    discriminator = Discriminator(args.img_size, args.num_domains, args.img_channels, max_conv_dim=512,
-                                      mean_invariance=False)
-
+    if args.use_pretrained_classifier: 
+        discriminator = Discriminator(args.img_size, num_domains=1, img_channels=args.img_channels, max_conv_dim=512,
+                                          mean_invariance=False)
+    else:
+        discriminator = Discriminator(args.img_size, num_domains=args.num_domains, img_channels=args.img_channels, max_conv_dim=512,
+                                          mean_invariance=False)
     mapping_network = MappingNetwork(args.latent_dim, style_dim=args.style_dim, num_domains=args.num_domains,
                                      num_style_vecs_per_class=num_style_vecs_per_class, deterministic_stylevec=False)
 
@@ -547,7 +514,7 @@ def build_model(args):
 
     if args.use_pretrained_classifier:
         classifier = load_pretrained_classifier(classifier_type=args.classifier_type, data_name=args.data_name,
-                                                img_channels=args.img_channels, img_size=args.img_size, num_of_classes=args.num_domains)
+                                                img_channels=args.img_channels, img_size=args.img_size, num_of_classes=args.num_domains, classifier_weights_path=args.classifier_weights_path)
         classifier = nn.DataParallel(classifier)
         classifier_ema = copy.deepcopy(classifier)
         nets = Munch(generator=generator,

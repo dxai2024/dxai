@@ -35,7 +35,7 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
 
     # Set various parameters and paths
     data_name = args.data_name
-    mission_name = args.mission_name
+    running_name = args.running_name
     classifier_type = args.classifier_type
     batch_size = 1
 
@@ -54,7 +54,7 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
     show_color = False  # True
     show_only_attr = True  # False #
 
-    save_class_agnostic = True  # False #
+    save_images = True  # False #
 
     # Set LRP classifier type
     lrp_classifier_type = 'classifier3' if 'discriminator' in classifier_type else classifier_type
@@ -77,9 +77,9 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
     args.num_domains = num_of_classes
     args.max_eval_iter = min(args.max_eval_iter, int(len(test_set)/batch_size))
     iters_num = min(args.max_eval_iter*batch_size, len(test_set))
-    run_name = './xai_output/xai_'+data_name+'_'+mission_name
+    out_folder = './xai_output/xai_'+data_name+'_'+running_name
     branch_path = args.checkpoint_dir + os.sep + format(args.resume_iter, '06d') + '_nets_ema.ckpt'
-    details_dict_path = run_name + os.sep + str(args.resume_iter) + '_details_dict' + '_' + classifier_type + '_' + str(iters_num) + '_iters' + '.pkl'
+    details_dict_path = out_folder + os.sep + str(args.resume_iter) + '_details_dict' + '_' + classifier_type + '_' + str(iters_num) + '_iters' + '.pkl'
 
     if global_beta:
         details_dict_path = details_dict_path.replace('details_dict', 'global_beta_details_dict')
@@ -98,17 +98,16 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
     print('number of test examples:     ', len(test_set))
     print('number of current examples:  ', min(args.max_eval_iter*batch_size, len(test_set)))
     print('PATH is:     ', branch_path)
-    print('run name is: ', run_name)
-    print('details-dict path is: ', details_dict_path.replace(run_name, ''))
+    print('run name is: ', out_folder)
+    print('details-dict path is: ', details_dict_path.replace(out_folder, ''))
     print(args.resume_iter)
 
     # Load GAN networks and classifiers
     nets = load_branch_gan_networks(args, branch_path, device)
-    resnet_classifier = load_classifier('resnet18', data_name, args, num_of_classes, device)
     classifier = load_classifier(classifier_type, data_name, args, num_of_classes, device, nets)
     model = nets.discriminator.module if 'discriminator' in classifier_type else classifier
-    if not os.path.isdir(run_name):
-        os.makedirs(run_name)
+    if not os.path.isdir(out_folder):
+        os.makedirs(out_folder)
 
     attributions2show = []
 
@@ -153,8 +152,8 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
                     labels2xai = make_xai_labels(labels, use_true_labels, num_of_classes)
 
                     attributions, mask, x2class = make_attribution_map_and_mask(xai_method, method, images, labels2xai,
-                                                    args, nets, beta, run_name, ii, classifier_type, 
-                                                    save_class_agnostic=save_class_agnostic, global_beta=global_beta)
+                                                    args, nets, beta, out_folder, ii, classifier_type, 
+                                                    save_images=save_images, global_beta=global_beta)
 
                     outputs = nets.discriminator(x2class) if 'discriminator' in classifier_type else classifier(x2class)
 
@@ -171,12 +170,11 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
                     if xai_method not in 'rand' and aa == 1 and len(images2show)*batch_size <= threshold2plot and args.max_eval_iter <= threshold2plot:
                         images2show, attributions2show_per_method, attributions2show = save_heatmaps(images, attributions,
                                       images2show, attributions2show_per_method, attributions2show, args, args.img_channels,
-                                      run_name, xai_method, batch_size, args.max_eval_iter, labels2xai, labels, ii, classifier_type, one_heatmap_image, show_only_attr=show_only_attr, show_color=show_color)
+                                      out_folder, xai_method, batch_size, args.max_eval_iter, labels2xai, labels, ii, classifier_type, one_heatmap_image, show_only_attr=show_only_attr, show_color=show_color)
 
             details_dict[xai_method].probs_hists[details_dict[xai_method].betas.index(beta)] = np.round(1e3 * (probs_hists / class_counter).detach().cpu().numpy()) / 1e3
             details_dict[xai_method].values[details_dict[xai_method].betas.index(beta)] = np.round(1e3 * correct / total) / 1e3
             print('Accuracy of the network on the %d test images: %d %%' % (total, 100 * correct / total))
-            #print_entropy_detatils(y_true, y_pred, entropy_list)
 
             with open(details_dict_path, "wb") as fp:
                 pickle.dump(details_dict, fp)
@@ -185,38 +183,9 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
             print(data_name, '-', xai_method)
             with open(details_dict_path, "wb") as fp:
                 pickle.dump(details_dict, fp)
-        compute_AUC(details_dict, run_name, args, classifier_type, iters_num, global_beta, T=max(beta_list))
+        compute_AUC(details_dict, out_folder, args, classifier_type, iters_num, global_beta, T=max(beta_list))
 
-    save_accuracy_figure(details_dict, args, num_of_classes, data_name, mission_name, run_name, iters_num, classifier_type, global_beta)
+    save_accuracy_figure(details_dict, args, num_of_classes, data_name, running_name, out_folder, iters_num, classifier_type, global_beta)
 
-    '''
-    for key in details_dict.keys():# 'dxai'
-        #print([h for h in details_dict[key].probs_hists])
-        probs_hists_stack = np.stack(details_dict[key].probs_hists, axis=0).reshape((-1, num_of_classes))
-        print(probs_hists_stack.shape)
-        print(probs_hists_stack)
-        
-        plt.rcParams.update({'font.size': 16})
-
-        f,a = plt.subplots(len(details_dict[key].probs_hists), num_of_classes)
-        f.set_size_inches((5*num_of_classes, 3*len(details_dict[key].probs_hists)), forward=False)
-        a = a.ravel()
-        
-        for idx,ax in enumerate(a):
-            ax.bar(classes, probs_hists_stack[idx], width=0.5)
-            if idx < num_of_classes:
-                #ax.set_title("Probabilities of '"+classes[idx%num_of_classes]+"' Label", fontsize=15)
-                ax.set_title(classes[0] + '   '+classes[1] + '   '+classes[2], fontsize=18)
-            if idx % num_of_classes == 0:
-                ax.set_ylabel(r'$\beta$=' + str(details_dict[key].betas[idx // num_of_classes]), rotation='horizontal',  fontsize=20, labelpad=55)
-            ax.set_ylim(bottom=0, top=1)
-            ax.set_yticks([0, 1])
-            ax.set_xticks([])
-            plt.subplots_adjust(wspace=1.5) 
-        #plt.tight_layout()
-        plt.savefig(run_name + os.sep + str(args.resume_iter)+'_'+key+'_histograms_'+classifier_type+'_'+str(iters_num)+'_iters'+'.png', format='png', dpi=500)#, bbox_inches="tight")
-        #plt.show()
-        plt.close()
-    '''
     print('Done')
     return 0

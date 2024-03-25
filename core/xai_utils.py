@@ -123,7 +123,7 @@ def prepare_method_of_xai(xai_method, model, classifier_type, lrp_classifier_typ
     return method
 
 
-def make_attribution_map_and_mask(xai_method, method, images, labels2xai, args, nets, beta, run_name, index, classifier_type, save_class_agnostic=False, agnostic_mode=False, global_beta=False):
+def make_attribution_map_and_mask(xai_method, method, images, labels2xai, args, nets, beta, out_folder, index, classifier_type, save_images=False, agnostic_mode=False, global_beta=False):
     masks = None
     if xai_method in 'dxai':
         z_trg = torch.randn(images.size(0), args.latent_dim).to(images.device)
@@ -199,8 +199,8 @@ def make_attribution_map_and_mask(xai_method, method, images, labels2xai, args, 
     else:
         x2class = (1-masks)*images 
     
-    if save_class_agnostic and index < 3e2:
-        distinction_agnostic_folder = run_name + os.sep + str(args.resume_iter) + '_distinction_agnostic_'+classifier_type+ os.sep + xai_method
+    if save_images and index < 3e2:
+        distinction_agnostic_folder = out_folder + os.sep + str(args.resume_iter) + '_distinction_agnostic_'+classifier_type+ os.sep + xai_method
         if global_beta:
             distinction_agnostic_folder = distinction_agnostic_folder + '_beta_'+str(beta).replace('.', '_')
         if not os.path.isdir(distinction_agnostic_folder):
@@ -239,16 +239,16 @@ def make_xai_labels(labels, use_true_labels, num_of_classes):
     return labels2xai
     
     
-def save_accuracy_figure(details_dict, args, num_of_classes, data_name, mission_name, run_name, iters_num, classifier_type, global_beta=False):
+def save_accuracy_figure(details_dict, args, num_of_classes, data_name, running_name, out_folder, iters_num, classifier_type, global_beta=False):
     print('save figure...')
-    if not os.path.isdir(run_name):
-        os.mkdir(run_name)
+    if not os.path.isdir(out_folder):
+        os.mkdir(out_folder)
     plt.figure()
     for key in details_dict.keys():
         if details_dict[key].values.count(None) < len(details_dict[key].values) - 1:
             plt.plot(details_dict[key].betas, details_dict[key].values, label=key)
     plt.grid(True)
-    plt.title(data_name + ' - ' + mission_name)
+    plt.title(data_name + ' - ' + running_name)
   
     plt.axhline(y=1 / num_of_classes, color='r', linestyle='--')
     plt.ylabel('accuracy', fontsize=17)
@@ -259,13 +259,13 @@ def save_accuracy_figure(details_dict, args, num_of_classes, data_name, mission_
         experiment_name = 'global_beta'
     else:
         experiment_name = 'faithness'
-    plt.savefig(run_name + os.sep + str(args.resume_iter)+'_'+experiment_name+'_'+classifier_type+'_'+str(iters_num)+'_iters'+'.png', format='png', bbox_inches="tight")
+    plt.savefig(out_folder + os.sep + str(args.resume_iter)+'_'+experiment_name+'_'+classifier_type+'_'+str(iters_num)+'_iters'+'.png', format='png', bbox_inches="tight")
     plt.close()
     print('figure saved..')
 
 
 def save_heatmaps(images, attributions, images2show, attributions2show_per_method, attributions2show, args, img_channels,
-                  run_name, xai_method, batch_size, max_iter, labels2xai, labels, index, classifier_type, one_heatmap_image=False, show_only_attr=True, show_color=True, agnostic_mode=False):
+                  out_folder, xai_method, batch_size, max_iter, labels2xai, labels, index, classifier_type, one_heatmap_image=False, show_only_attr=True, show_color=True, agnostic_mode=False):
     images2show.append(images)
     attributions = attributions / (attributions.abs().max()+1e-8) if xai_method not in 'dxai' and (attributions.abs().max()<0.9 or attributions.abs().max()>1) else attributions
     attributions2show_per_method.append(attributions)# / attributions.abs().max())
@@ -295,12 +295,12 @@ def save_heatmaps(images, attributions, images2show, attributions2show_per_metho
         if one_heatmap_image:
             attributions2show += [attributions2show_per_method_cat.repeat_interleave(repeats=3, dim=1)]
         # attributions2show += [attributions2show_per_method_cat.repeat_interleave(repeats=3, dim=1)]
-        if not os.path.isdir(run_name):
-            os.mkdir(run_name)
+        if not os.path.isdir(out_folder):
+            os.mkdir(out_folder)
         col = 3 if one_heatmap_image else (len(images2show) * batch_size)
        
         save_image(torch.cat(attributions2show, dim=0), col,
-                   run_name + os.sep + str(args.resume_iter)+'_'+str((labels2xai[0] == labels[0]).item()) + '_' + im_name + '_' + str(index+1) + '.png')
+                   out_folder + os.sep + str(args.resume_iter)+'_'+str((labels2xai[0] == labels[0]).item()) + '_' + im_name + '_' + str(index+1) + '.png')
         images2show = []
         attributions2show_per_method = []
         attributions2show = [] if one_heatmap_image else attributions2show
@@ -327,9 +327,9 @@ def calc_attributions_accuracy(images, attributions, labels, details_dict, xai_m
     return details_dict, correct_att, total_att
 
 
-def save_attributions_for_fid(images, attributions, args, classifier_type, xai_method, run_name, iteration, batch_size, labels, classes):
+def save_attributions_for_fid(images, attributions, args, classifier_type, xai_method, out_folder, iteration, batch_size, labels, classes):
     N = images.size(0)
-    folder_name = run_name + os.sep + str(args.resume_iter)+'_'+classifier_type+'_attributions' + os.sep + xai_method
+    folder_name = out_folder + os.sep + str(args.resume_iter)+'_'+classifier_type+'_attributions' + os.sep + xai_method
     if not os.path.isdir(folder_name):
         os.makedirs(folder_name)
     for k in range(N):
@@ -376,12 +376,12 @@ def update_beta_and_value(details_dict, key, beta):
     return details_dict
 
 
-def compute_AUC(details_dict, run_name, args, classifier_type, iters_num, global_beta, T=1):
+def compute_AUC(details_dict, out_folder, args, classifier_type, iters_num, global_beta, T=1):
     if global_beta:
         experiment_name = 'global_beta'
     else:
         experiment_name = 'faithfulness'
-    filename = run_name + os.sep + str(args.resume_iter)+'_AUC_'+experiment_name+'_'+classifier_type+'_'+str(iters_num)+'_iters.txt'
+    filename = out_folder + os.sep + str(args.resume_iter)+'_AUC_'+experiment_name+'_'+classifier_type+'_'+str(iters_num)+'_iters.txt'
     with open(filename, 'w') as f:
         f.write('####### ' + experiment_name + ' AUC until T='+str(T)+' ##########\n')
         auc_dict = {}
@@ -410,9 +410,9 @@ def compute_AUC(details_dict, run_name, args, classifier_type, iters_num, global
     f.close()
 
 
-def load_classifier(classifier_type, data_name, args, num_of_classes, device, nets=[]):
+def load_classifier(classifier_type, data_name, args, num_of_classes, device, nets=None):
     if 'discriminator' not in classifier_type:
-        classifier = load_pretrained_classifier(classifier_type, data_name, args.img_channels, args.img_size, num_of_classes)
+        classifier = load_pretrained_classifier(classifier_type, data_name, args.img_channels, args.img_size, num_of_classes, args.classifier_weights_path)
         classifier.to(device)
     else:
         classifier = nets.discriminator
