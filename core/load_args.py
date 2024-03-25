@@ -1,5 +1,5 @@
 import argparse
-
+import os
 
 def load_args():
     """
@@ -77,7 +77,8 @@ def load_args():
     parser.add_argument('--save_every', type=int, default=10000)  # 10000 50000
 
     args = parser.parse_args()
-
+    
+    args.num_domains = len(next(os.walk(args.train_img_dir))[1])
     if args.num_branches == 1:
         args.alpha_blend = False
 

@@ -26,47 +26,13 @@ class method_values:
   def __init__(self, betas=[], values=[], confusion_matrix=[], num_of_classes=2):
     self.betas = []
     self.values = []
-    # self.confusion_matrix = confusion_matrix
     self.SNR_dB = []
     self.std = []
     self.att_accuracy = np.nan
     self.attributions = []
-    self.probs_hists = []#torch.zeros(num_of_classes, num_of_classes)
-    self.class_counter = []#torch.zeros(num_of_classes)
+    self.probs_hists = []
+    self.class_counter = []
 
-
-def make_datasets(data_name, img_channels=1, img_size=256):
-    train_data_folder = '../Data' + os.sep + data_name + os.sep + 'train'
-    test_data_folder = '../Data' + os.sep + data_name + os.sep + 'val'
-
-    class MyRotateTransform:
-        def __init__(self):
-            self.angles = [0, 90, -90, 180]
-
-        def __call__(self, x):
-            angle = random.choice(self.angles)
-            return TF.rotate(x, angle)
-
-    train_transform = transforms.Compose([
-        transforms.Resize([img_size, img_size]),
-        MyRotateTransform(),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5] * img_channels,
-                             std=[0.5] * img_channels),
-    ])
-    test_transform = transforms.Compose([
-        transforms.Resize([img_size, img_size]),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5] * img_channels,
-                             std=[0.5] * img_channels),
-    ])
-    if img_channels == 1:
-        train_transform.transforms.insert(0, transforms.Grayscale(num_output_channels=img_channels))
-        test_transform.transforms.insert(0, transforms.Grayscale(num_output_channels=img_channels))
-    trainset = torchvision.datasets.ImageFolder(root=train_data_folder, transform=train_transform)
-    testset = torchvision.datasets.ImageFolder(root=test_data_folder, transform=test_transform)
-    return trainset, testset
 
 
 def load_branch_gan_networks(args, branch_path, device):
@@ -418,16 +384,6 @@ def load_classifier(classifier_type, data_name, args, num_of_classes, device, ne
         classifier = nets.discriminator
     return classifier
 
-'''
-def print_entropy_detatils(y_true, y_pred, entropy_list):
-    cf_matrix = np.round(1e3*confusion_matrix(y_true, y_pred, normalize='true'))/1e3
-    if cf_matrix.shape[0]<=3:
-        print('confusion matrix: ')
-        print(cf_matrix)
-    entropy_list = torch.stack(entropy_list)
-    print('entropy mean:     ', entropy_list.mean(0).cpu().numpy())
-    print('entropy std:      ', entropy_list.std(0).cpu().numpy())
-'''
 
 def slic2tensor(images, n_segments=256):
     N, C, H, W = images.size()

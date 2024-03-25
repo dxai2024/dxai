@@ -2,6 +2,8 @@ import pickle
 from tqdm import tqdm
 from core.load_args import load_args
 from core.xai_utils import *
+from core.data_loader import get_test_loader
+import numpy as np
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -9,7 +11,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 args = load_args()
 
 
-def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
+def eval_xai(args, use_true_labels=True, experiment_type='global_beta', save_images=True):
     """
     Evaluate explainability methods on a trained model.
 
@@ -49,34 +51,34 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
     else:
         global_beta = False
     
-    # Set additional options for XAI methods
-    one_heatmap_image = False
-    show_color = False  # True
-    show_only_attr = True  # False #
-
-    save_images = True  # False #
-
     # Set LRP classifier type
     lrp_classifier_type = 'classifier3' if 'discriminator' in classifier_type else classifier_type
 
     # Define XAI methods and beta values
     methods_list = ['rand', 'dxai', 'LayerGradCam', 'GuidedGradCam',
                     'GradientShap', 'lrp_relu', 'InternalInfluence', 'IntegratedGradients', 'Lime']
-    beta_list = [0, 0.01, 0.05, 0.1, 0.15, 0.2]
+                    
+    beta_list = list(np.round(100*np.arange(0, 0.25, 0.05))/100)
     if global_beta:
-        beta_list = [0, 0.2, 0.4, 0.6, 0.8, 1]
+        beta_list = list(np.round(100*np.arange (0, 1.1, 0.1))/100)
     beta_list.sort()
 
     # Load test dataset
-    _, test_set = make_datasets(data_name, args.img_channels, args.img_size)
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=2)
-
+   
+    len_test_set = sum([len(files) for r, d, files in os.walk(args.val_img_dir)])
+    classes = sorted(os.listdir(args.val_img_dir))
+    test_loader = get_test_loader(root=args.val_img_dir,
+                     img_size=args.img_size,
+                     batch_size=batch_size,
+                     shuffle=True,
+                     num_workers=args.num_workers,
+                     img_channels=args.img_channels,
+                     data_range_norm=args.data_range_norm)
+                     
     # Get class information
-    classes = np.asarray(test_set.classes)
-    num_of_classes = len(classes)
-    args.num_domains = num_of_classes
-    args.max_eval_iter = min(args.max_eval_iter, int(len(test_set)/batch_size))
-    iters_num = min(args.max_eval_iter*batch_size, len(test_set))
+    num_of_classes = args.num_domains
+    args.max_eval_iter = min(args.max_eval_iter, int(len_test_set/batch_size))
+    iters_num = min(args.max_eval_iter*batch_size, len_test_set)
     out_folder = './xai_output/xai_'+data_name+'_'+running_name
     branch_path = args.checkpoint_dir + os.sep + format(args.resume_iter, '06d') + '_nets_ema.ckpt'
     details_dict_path = out_folder + os.sep + str(args.resume_iter) + '_details_dict' + '_' + classifier_type + '_' + str(iters_num) + '_iters' + '.pkl'
@@ -95,8 +97,8 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
     print('data name:                   ', data_name)
     print('classes:                     ', classes)
     print('number of classes:           ', num_of_classes)
-    print('number of test examples:     ', len(test_set))
-    print('number of current examples:  ', min(args.max_eval_iter*batch_size, len(test_set)))
+    print('number of test examples:     ', len_test_set)
+    print('number of current examples:  ', min(args.max_eval_iter*batch_size, len_test_set))
     print('PATH is:     ', branch_path)
     print('run name is: ', out_folder)
     print('details-dict path is: ', details_dict_path.replace(out_folder, ''))
@@ -106,10 +108,9 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
     nets = load_branch_gan_networks(args, branch_path, device)
     classifier = load_classifier(classifier_type, data_name, args, num_of_classes, device, nets)
     model = nets.discriminator.module if 'discriminator' in classifier_type else classifier
+    
     if not os.path.isdir(out_folder):
         os.makedirs(out_folder)
-
-    attributions2show = []
 
     for xx, xai_method in enumerate(methods_list):
         if 'Lime' in xai_method and batch_size*args.max_eval_iter > threshold2plot and len(methods_list) > 1:
@@ -131,21 +132,18 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
                 continue
                       
             correct, total = 0, 0
-            y_true, y_pred, entropy_list = [], [], []
+            y_true, y_pred = [], []
             torch.manual_seed(123)
             np.random.seed(123)
             print('')
             print('testing... , beta = ', beta)
-            images2show = []
-            attributions2show_per_method = []
-            attributions2show = []
+            
             probs_hists = torch.zeros(num_of_classes, num_of_classes).to(device)
             class_counter = torch.zeros(num_of_classes).to(device)
             
             with torch.no_grad():
                 for ii, data in enumerate(tqdm(test_loader)):
-                    if ii >= 1.01*args.max_eval_iter and args.max_eval_iter <= threshold2plot or ii >= args.max_eval_iter > threshold2plot or \
-                            args.max_eval_iter <= threshold2plot < len(images2show)*batch_size:
+                    if ii >= args.max_eval_iter and args.max_eval_iter <= threshold2plot or ii >= args.max_eval_iter > threshold2plot:
                         break
                     images, labels = data[0].to(device), data[1].to(device)
                     y_true.extend(labels.data.cpu().numpy())
@@ -162,16 +160,10 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
                     total += labels.size(0)
                     correct += (predicted == labels).sum().item()
                     probs = F.softmax(outputs, dim=1)
-                    entropy = -(probs * torch.log(probs + 1e-8)).sum(1).mean()
-                    entropy_list.append(entropy)
                     probs_hists[labels] += probs
                     class_counter[labels] += labels.size(0)
 
-                    if xai_method not in 'rand' and aa == 1 and len(images2show)*batch_size <= threshold2plot and args.max_eval_iter <= threshold2plot:
-                        images2show, attributions2show_per_method, attributions2show = save_heatmaps(images, attributions,
-                                      images2show, attributions2show_per_method, attributions2show, args, args.img_channels,
-                                      out_folder, xai_method, batch_size, args.max_eval_iter, labels2xai, labels, ii, classifier_type, one_heatmap_image, show_only_attr=show_only_attr, show_color=show_color)
-
+                    
             details_dict[xai_method].probs_hists[details_dict[xai_method].betas.index(beta)] = np.round(1e3 * (probs_hists / class_counter).detach().cpu().numpy()) / 1e3
             details_dict[xai_method].values[details_dict[xai_method].betas.index(beta)] = np.round(1e3 * correct / total) / 1e3
             print('Accuracy of the network on the %d test images: %d %%' % (total, 100 * correct / total))
@@ -188,4 +180,4 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta'):
     save_accuracy_figure(details_dict, args, num_of_classes, data_name, running_name, out_folder, iters_num, classifier_type, global_beta)
 
     print('Done')
-    return 0
+    

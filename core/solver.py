@@ -32,7 +32,7 @@ class Solver(nn.Module):
         super().__init__()
         if args.train_img_dir in '../Data/train':
             args.train_img_dir = '../Data/'+args.data_name+'/train'
-        args.num_domains = len(next(os.walk(args.train_img_dir))[1])
+        #args.num_domains = len(next(os.walk(args.train_img_dir))[1])
         self.args = args
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
