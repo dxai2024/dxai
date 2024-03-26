@@ -1,9 +1,12 @@
 # DXAI: Explaining Classification by Image Decomposition
+
+This repository contains the official code for the paper available [here](https://arxiv.org/abs/2401.00320).
+
 ## Abstract
 We propose a new way to explain and to visualize neural network classification through a decomposition-based explainable AI (DXAI).
 Instead of providing an explanation heatmap, our method yields a decomposition of the image into class-agnostic and class-distinct parts, with respect to the data and chosen classifier. Following a fundamental signal processing paradigm of analysis and synthesis, the original image is the sum of the decomposed parts. We thus obtain a radically different way of explaining classification. The class-agnostic part ideally is composed of all image features which do not posses  class information, where the class-distinct part is its complementary.
 This new perceptual visualization, can be more helpful and informative in certain scenarios, especially when the attributes are dense, global and additive in nature, for instance, when colors or textures are essential for class distinction.
-![Heatmaps compare](https://github.com/dxaicvpr2024/DXAI/blob/main/heatmaps_compare.jpg)
+![Heatmaps compare](https://github.com/dxai2024/dxai/blob/main/heatmaps_compare.jpg)
 
 ## Installation
 The code in this repository is written based on the stragan-v2 code that can be found [here](https://github.com/clovaai/stargan-v2) [[1]](#1).
@@ -86,6 +89,9 @@ python main.py --mode train\
 ```
 To understand the role of each argument, please look at [core/load_args.py](core/load_args.py).
 
+To use a new classifier provided by the user, which is not among the classifiers listed in the `load_pretrained_classifier` function found in the [core/model.py](core/model.py) file, the user must specify the file path containing the model weights using the `--classifier_weights_path` argument and update the function accordingly.
+
+We'll note that, at least in this version, the classifier should receive square images with pixel values ranging between -1 and 1.
 ## References
 <a id="1">[1]</a> 
 Yunjey Choi and Youngjung Uh and Jaejun Yoo and Jung-Woo Ha (2020). 
