@@ -86,10 +86,9 @@ def _make_balanced_sampler(labels):
     return WeightedRandomSampler(weights, len(weights))
 
 
-def get_train_loader(root, which='source', img_size=256,
+def get_train_loader(root, img_size=256,
                      batch_size=8, num_workers=4, img_channels=3, data_range_norm=True):
-    print('Preparing DataLoader to fetch %s images '
-          'during the training phase...' % which)
+    print('Preparing DataLoader during the training phase...')
 
     class MyRotateTransform:
         def __init__(self):
@@ -112,13 +111,8 @@ def get_train_loader(root, which='source', img_size=256,
     if data_range_norm:
         transform.transforms.append(transforms.Normalize(mean=[0.5] * img_channels,
                                  std=[0.5] * img_channels))
-    if which == 'source':
-        dataset = ImageFolder(root, transform)
-    elif which == 'reference':
-        dataset = ReferenceDataset(root, transform)
-    else:
-        raise NotImplementedError
-
+    
+    dataset = ImageFolder(root, transform)
     sampler = _make_balanced_sampler(dataset.targets)
     return data.DataLoader(dataset=dataset,
                            batch_size=batch_size,
@@ -163,7 +157,7 @@ def get_eval_loader(root, img_size=256, batch_size=32,
 
 def get_test_loader(root, img_size=256, batch_size=32,
                     shuffle=True, num_workers=4, img_channels=3, data_range_norm=True):
-    print('Preparing DataLoader for the generation phase...')
+    print('Preparing DataLoader for the test phase...')
 
     transform = transforms.Compose([
         transforms.Resize([img_size, img_size]),
