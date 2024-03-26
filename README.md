@@ -89,7 +89,8 @@ python main.py --mode train\
 ```
 To understand the role of each argument, please look at [core/load_args.py](core/load_args.py).
 
-To use a new classifier provided by the user, which is not among the classifiers listed in the `load_pretrained_classifier` function found in the [core/model.py](core/model.py) file, the user must specify the file path containing the model weights using the `--classifier_weights_path` argument and update the function accordingly.
+To use a new classifier provided by the user, which is not among the classifiers listed in the `load_pretrained_classifier` function found in the [core/model.py](core/model.py) file, the user must specify the file path containing the model weights using the `--classifier_weights_path` argument and update the function accordingly. 
+The file [train_classifier.py](train_classifier.py) can also be used to train a classifier from scratch.
 
 We'll note that, at least in this version, the classifier should receive square images with pixel values ranging between -1 and 1.
 ## References
