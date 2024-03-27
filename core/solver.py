@@ -32,7 +32,6 @@ class Solver(nn.Module):
         super().__init__()
         if args.train_img_dir in '../Data/train':
             args.train_img_dir = '../Data/'+args.data_name+'/train'
-        #args.num_domains = len(next(os.walk(args.train_img_dir))[1])
         self.args = args
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
@@ -66,7 +65,7 @@ class Solver(nn.Module):
 
         self.to(self.device)
         for name, network in self.named_children():
-            # Do not initialize the FAN parameters
+            # Do not initialize the ema, FAN and classifier parameters
             if ('ema' not in name) and ('fan' not in name) and ('classifier' not in name):
                 print('Initializing %s...' % name)
                 network.apply(utils.he_init)
@@ -107,19 +106,14 @@ class Solver(nn.Module):
 
             z_trg, z_trg2 = inputs.z_trg, inputs.z_trg2
 
-            if args.alpha_blend:
-                #half_B = torch.floor(torch.tensor(x_real.shape[0] / 2)).int()
-                #from_start = torch.bernoulli(torch.tensor(0.5)).to(x_real.device)
-                #x_real = from_start * x_real[0:half_B] + (1 - from_start) * x_real[half_B::]
+            
+            if args.alpha_blend:                
                 y_trg = y_org.clone().long()
                 x_real = x_real.repeat(2, 1, 1, 1)
-                #y_org = from_start * y_org[0:half_B] + (1 - from_start) * y_org[half_B::]
                 y_org = y_org.repeat(2).long()
                 if args.num_domains == 2:
-                    #y_trg = from_start * y_trg[0:half_B] + (1 - from_start) * y_trg[half_B::]
                     y_trg = torch.cat((y_trg, 1 - y_trg)).long().to(x_real.device)
                 else:
-                    #y_trg = from_start * y_org[0:half_B] + (1 - from_start) * y_org[half_B::]
                     y_other = args.num_domains*torch.ones_like(y_trg)
                     for jj in range(y_trg.size(0)):
                         class_list = list(range(0, args.num_domains))
@@ -131,6 +125,7 @@ class Solver(nn.Module):
                 alpha_vec = alpha_vec.repeat_interleave(repeats=args.img_channels, dim=1).unsqueeze(-1).unsqueeze(-1)
             else:
                 alpha_vec = None
+            
             # train the discriminator
 
             d_loss, d_losses_latent1 = compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=z_trg,
@@ -177,7 +172,6 @@ class Solver(nn.Module):
             if i % sample_every == 0:
                 step = i + 1
                 src = next(InputFetcher(test_loaders.src, None, args.latent_dim, 'test'))
-                # ref = next(InputFetcher(test_loaders.ref, None, args.latent_dim, 'test'))
                 os.makedirs(args.sample_dir, exist_ok=True)
                 inputs = {'x_src': src.x, 'y_src': src.y}
                 inputs = SimpleNamespace(**inputs)
@@ -191,13 +185,6 @@ def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, mas
     loss_real = adv_loss(out_real_fake, 1)
     
     if args.use_pretrained_classifier:
-        #with torch.no_grad():
-        #    classifier_out = nets.classifier(x_real)
-        #    classifier_out = F.softmax(classifier_out, dim=1)
-        #    _, predicted = torch.max(classifier_out, dim=1)
-        #_, out = nets.discriminator(x_real, predicted)
-        #out = F.log_softmax(out, dim=1)
-        #loss_class_real = F.kl_div(out, classifier_out, reduction='batchmean')
         loss_class_real = torch.tensor(0).to(x_real.device).float()
     else:
         loss_class_real = F.cross_entropy(out/args.softmax_temp, y_org)
@@ -218,9 +205,7 @@ def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, mas
 
     loss_fake = adv_loss(out_real_fake, 0)
 
-    loss_class_fake = torch.tensor(0).to(x_real.device).float() #F.cross_entropy(out/args.softmax_temp, y_trg)
-
-    loss = loss_real + loss_fake + 1*loss_class_real + 0*loss_class_fake + args.lambda_reg * loss_reg
+    loss = loss_real + loss_fake + 1*loss_class_real + args.lambda_reg * loss_reg
     return loss, Munch(real=loss_real.item(),  fake=loss_fake.item(), reg=loss_reg.item(), class_real=loss_class_real.item(), class_fake=loss_class_fake.item())
 
 
@@ -238,12 +223,6 @@ def compute_g_loss(nets, args, x_real, y_trg, z_trgs=None, y_org=None, alpha_vec
             Psi[y_trg != y_org, 0:args.img_channels, :, :] = 0*Psi[y_trg != y_org, 0:args.img_channels, :, :]
         half_B = int(x_real.shape[0] / 2)
         x_fake = alpha_superposition(Psi, Res, alpha_vec, args)
-
-        # if iteration % (5*args.print_every) == 0:
-        #     with torch.no_grad():
-        #         ssim = calc_ssim_each_branch(Psi, half_B, args)
-        #         mean_ssim = ssim.reshape(half_B, args.num_branches).mean(0)
-        # else:
 
     if args.use_pretrained_classifier:
         out_real_fake, _ = nets.discriminator(x_fake, y_trg)

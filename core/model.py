@@ -497,9 +497,11 @@ def build_model(args):
     generator = nn.DataParallel(generator)
     num_style_vecs_per_class = generator.module.sub_networks.num_style_vecs_per_class
     if args.use_pretrained_classifier: 
+        # If pretrained classifier is used, the discriminator has only one head  output of real/fake.
         discriminator = Discriminator(args.img_size, num_domains=1, img_channels=args.img_channels, max_conv_dim=512,
                                           mean_invariance=False)
     else:
+        # Else, the discriminator has multi heads output in the length of num_domains.
         discriminator = Discriminator(args.img_size, num_domains=args.num_domains, img_channels=args.img_channels, max_conv_dim=512,
                                           mean_invariance=False)
     mapping_network = MappingNetwork(args.latent_dim, style_dim=args.style_dim, num_domains=args.num_domains,

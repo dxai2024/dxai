@@ -19,6 +19,7 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta', save_ima
         args (argparse.Namespace): Command-line arguments.
         use_true_labels (bool, optional): Whether to use true labels for XAI methods. Default is True.
         experiment_type (str, optional): Type of XAI experiment, either 'global_beta' or 'faithfulness'. Default is 'global_beta'.
+        use_true_labels (bool, optional): Whether to save images of heatmaps, class agnostic and distinction parts in the output folder. Default is True.
 
     Returns:
         int: Return value indicating the completion status (0 for success).
@@ -180,4 +181,5 @@ def eval_xai(args, use_true_labels=True, experiment_type='global_beta', save_ima
     save_accuracy_figure(details_dict, args, num_of_classes, data_name, running_name, out_folder, iters_num, classifier_type, global_beta)
 
     print('Done')
+    return 0
     
