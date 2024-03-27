@@ -152,7 +152,7 @@ if __name__ == '__main__':
                     running_loss = 0
             
             # Check the accuracy on 10% of the validation, if the accuracy improves keep the weights. 
-            # If there is no improvement for 5 epochs, end the training.
+            # If there is no improvement for 3 epochs or the accuracy decreased by more than 5%, end the training.
             curr_acc = test_classifier(testloader, classifier, max_iter=np.round(len_test_set/10/batch_size))
             if max_val_acc < curr_acc and curr_acc<0.999:
                 max_val_acc = curr_acc;
